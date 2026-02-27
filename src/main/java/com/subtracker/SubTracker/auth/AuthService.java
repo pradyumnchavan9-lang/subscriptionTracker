@@ -2,15 +2,20 @@ package com.subtracker.SubTracker.auth;
 
 
 import com.subtracker.SubTracker.enums.Role;
+import com.subtracker.SubTracker.refreshtoken.RefreshTokenEntity;
+import com.subtracker.SubTracker.refreshtoken.RefreshTokenService;
 import com.subtracker.SubTracker.security.JwtService;
 import com.subtracker.SubTracker.user.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.Map;
 
 @Service
 public class AuthService {
@@ -25,6 +30,8 @@ public class AuthService {
     private AuthenticationManager authenticationManager;
     @Autowired
     private JwtService jwtService;
+    @Autowired
+    private RefreshTokenService refreshTokenService;
 
     public UserResponseDto registerUser(RegisterRequest registerRequest) {
         CreateUserDto createUserDto = new CreateUserDto();
@@ -38,7 +45,9 @@ public class AuthService {
         return userMapper.entityToResponse(userEntity);
     }
 
-    public String login(LoginRequest loginRequest) {
+
+    //return jwt token
+    public ResponseEntity<?> login(LoginRequest loginRequest) {
 
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -47,11 +56,13 @@ public class AuthService {
                 )
         );
 
-        System.out.println("Successfully logged in");
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        System.out.println(userDetails.getUsername());
-        System.out.println(userDetails.getPassword());
-        System.out.println(passwordEncoder.encode(loginRequest.getPassword()));
-        return jwtService.generateToken(userDetails);
+        String accessToken = jwtService.generateToken(userDetails);
+        RefreshTokenEntity refreshToken = refreshTokenService.generateRefreshToken(loginRequest.getEmail());
+        return ResponseEntity.ok(Map.of(
+                "accessToken", accessToken,
+                "refreshToken", refreshToken.getToken(),
+                "email", loginRequest.getEmail()
+        ));
     }
 }
