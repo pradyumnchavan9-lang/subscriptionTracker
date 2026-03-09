@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 public class SubscriptionRequest {
 
     private String name;
-    private CategoryEntity categoryEntity;
+    private String categoryName;
     private BigDecimal price;
     private LocalDateTime startDate;
     private LocalDateTime endDate;

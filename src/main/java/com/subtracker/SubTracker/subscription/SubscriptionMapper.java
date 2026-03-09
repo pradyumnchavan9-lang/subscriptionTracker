@@ -2,6 +2,7 @@ package com.subtracker.SubTracker.subscription;
 
 
 import com.subtracker.SubTracker.category.CategoryMapper;
+import com.subtracker.SubTracker.category.CategoryRepository;
 import com.subtracker.SubTracker.user.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -14,12 +15,15 @@ public class SubscriptionMapper {
     private UserMapper userMapper;
     @Autowired
     private CategoryMapper categoryMapper;
+    @Autowired
+    private CategoryRepository categoryRepository;
 
     //Request to Entity
     public SubscriptionEntity requestToEntity(SubscriptionRequest subscriptionRequest) {
         SubscriptionEntity subscriptionEntity = new SubscriptionEntity();
         subscriptionEntity.setName(subscriptionRequest.getName());
-        subscriptionEntity.setCategory(subscriptionRequest.getCategoryEntity());
+        subscriptionEntity.setCategory(categoryRepository.findByName(subscriptionRequest.getCategoryName())
+                .orElseThrow(() -> new RuntimeException("Category not found")));
         subscriptionEntity.setMonthlyPrice(subscriptionRequest.getPrice());
         subscriptionEntity.setStartDate(subscriptionRequest.getStartDate());
         subscriptionEntity.setEndDate(subscriptionRequest.getEndDate());

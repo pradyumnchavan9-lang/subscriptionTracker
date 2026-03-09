@@ -1,11 +1,16 @@
 package com.subtracker.SubTracker.subscription;
 
 import com.subtracker.SubTracker.category.CategoryEntity;
+import com.subtracker.SubTracker.category.CategoryRepository;
 import com.subtracker.SubTracker.common.PageMapper;
 import com.subtracker.SubTracker.common.PageResponseDto;
+import com.subtracker.SubTracker.user.UserEntity;
+import com.subtracker.SubTracker.user.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -20,13 +25,20 @@ public class SubscriptionService {
     private SubscriptionMapper subscriptionMapper;
     @Autowired
     private PageMapper pageMapper;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private CategoryRepository categoryRepository;
 
 
     //Create a subscription for a user
     public SubscriptionResponse createSubscription(SubscriptionRequest subscriptionRequest) {
         SubscriptionEntity subscriptionEntity = subscriptionMapper.requestToEntity(subscriptionRequest);
         subscriptionEntity.onCreate();
-        //Get User from Security Context Holder and set here -> subscription.setUser(user)
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity userEntity = userRepository.findByEmail(authentication.getName()).
+                orElseThrow(NoSuchElementException::new);
+        subscriptionEntity.setUser(userEntity);
         subscriptionRepository.save(subscriptionEntity);
 
         return subscriptionMapper.entityToResponse(subscriptionEntity);
