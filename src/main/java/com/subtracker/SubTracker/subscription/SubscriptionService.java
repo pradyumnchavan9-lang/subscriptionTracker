@@ -14,6 +14,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.util.List;
 import java.util.NoSuchElementException;
 
 @Service
@@ -101,5 +105,24 @@ public class SubscriptionService {
         }else {
             return false;
         }
+    }
+
+    //Get Price of monthly subscriptions
+    public BigDecimal getMonthlyPrice(int year,int month) {
+
+        LocalDate start = YearMonth.now().atDay(1);
+        LocalDate end = YearMonth.now().atEndOfMonth();
+
+        LocalDateTime monthStart = start.atStartOfDay();
+        LocalDateTime monthEnd = end.atTime(23,59,59);
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity user = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(NoSuchElementException::new);
+        List<SubscriptionEntity> subscriptionEntities = subscriptionRepository.findMonthlySubscriptions(user.getId(),monthStart,monthEnd);
+        BigDecimal monthlyPrice = BigDecimal.ZERO;
+        for(SubscriptionEntity subscriptionEntity : subscriptionEntities) {
+            monthlyPrice = monthlyPrice.add(subscriptionEntity.getMonthlyPrice());
+        }
+        return monthlyPrice;
     }
 }

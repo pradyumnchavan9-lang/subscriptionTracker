@@ -3,6 +3,7 @@ package com.subtracker.SubTracker.subscription;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -17,4 +18,13 @@ public interface SubscriptionRepository extends JpaRepository<SubscriptionEntity
     Page<SubscriptionEntity> findAllByUserId(Long userId, Pageable pageable);
     Page<SubscriptionEntity> findAll(Pageable pageable);
     List<SubscriptionEntity> findByEndDateBetween(LocalDateTime start, LocalDateTime end);
+    List<SubscriptionEntity> findAllByUserId(Long userId);
+
+    @Query("""
+        SELECT s FROM SubscriptionEntity s
+        WHERE s.user.id = ?1
+        AND s.startDate <= ?3
+        AND s.endDate >= ?2
+        """)
+    List<SubscriptionEntity> findMonthlySubscriptions(Long userId,LocalDateTime startDate,LocalDateTime endDate);
 }

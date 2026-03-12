@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+
 @RestController
 @RequestMapping("/subscription")
 public class SubscriptionController {
@@ -68,4 +70,10 @@ public class SubscriptionController {
         return new ResponseEntity<>("Subscription not found",HttpStatus.NOT_FOUND);
     }
 
+    //Get monthly price
+    @GetMapping("/monthly-expenses/{month}/{year}")
+    public ResponseEntity<BigDecimal> getMonthlyExpenses(@PathVariable Integer month, @PathVariable Integer year) {
+
+        return new ResponseEntity<>(subscriptionService.getMonthlyPrice(year, month), HttpStatus.OK);
+    }
 }
