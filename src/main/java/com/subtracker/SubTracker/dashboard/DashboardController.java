@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/dashboard")
 public class DashboardController {
@@ -17,5 +20,10 @@ public class DashboardController {
     @GetMapping
     public ResponseEntity<DashboardResponse> getDashboard(){
         return new ResponseEntity<>(dashboardService.getDashboard(), HttpStatus.OK);
+    }
+
+    @GetMapping("/top-subscriptions")
+    public ResponseEntity<TopSubscriptionsResponse> getTopSubscriptions(){
+        return new ResponseEntity<>(dashboardService.getTopSubscriptions(),HttpStatus.OK);
     }
 }

@@ -13,10 +13,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 @Service
 public class DashboardService {
@@ -31,7 +28,7 @@ public class DashboardService {
     public Map<Integer, BigDecimal> getMonthlyExpenses(List<SubscriptionEntity> subscriptions) {
 
         LocalDateTime now = LocalDateTime.now();
-        Map<Integer, BigDecimal> monthlyExpenses = new HashMap<>();
+        Map<Integer, BigDecimal> monthlyExpenses = new LinkedHashMap<>();
         int year = now.getYear();
 
         for (int i = 1; i <= 12; i++) {
@@ -57,6 +54,27 @@ public class DashboardService {
         return monthlyExpenses;
     }
 
+    //Categorical Expenses
+    public Map<String,BigDecimal> getCategoricalExpenses(List<SubscriptionEntity> subscriptions) {
+
+        LocalDate today =  LocalDate.now();
+        HashMap<String,BigDecimal> categoricalExpenses = new HashMap<>();
+        for(SubscriptionEntity subscription : subscriptions) {
+            LocalDate start = subscription.getStartDate().toLocalDate();
+            LocalDate end = subscription.getEndDate().toLocalDate();
+
+            if(!today.isBefore(start) && !today.isAfter(end)) {
+                String category = subscription.getCategory().getName();
+                BigDecimal previous = categoricalExpenses.getOrDefault(category, BigDecimal.ZERO);
+                categoricalExpenses.put(
+                        category,
+                        previous.add(subscription.getMonthlyPrice())
+                );
+            }
+        }
+        return categoricalExpenses;
+    }
+
     public DashboardResponse getDashboard(){
         DashboardResponse dashboardResponse = new DashboardResponse();
 
@@ -71,6 +89,7 @@ public class DashboardService {
         dashboardResponse.setSubscriptions(allSubscriptions.size());
         //Current Subscriptions Count
         LocalDateTime today = LocalDateTime.now();
+
         int count = 0;
         for(SubscriptionEntity subscription : allSubscriptions){
             if(today.isAfter(subscription.getStartDate()) && today.isBefore(subscription.getEndDate())){
@@ -82,6 +101,43 @@ public class DashboardService {
         //Monthly Expenses
         Map<Integer,BigDecimal> monthlyExpenses = getMonthlyExpenses(allSubscriptions);
         dashboardResponse.setMonthlyExpenses(monthlyExpenses);
+
+        //Category Expenses
+        Map<String,BigDecimal> categoryExpenses = getCategoricalExpenses(allSubscriptions);
+        dashboardResponse.setCategoryExpenses(categoryExpenses);
+
+        //Current Month
+        int month = today.getMonthValue();
+        dashboardResponse.setCurrentMonth(month);
         return dashboardResponse;
+    }
+
+
+    //Get Top subcriptions
+    public TopSubscriptionsResponse getTopSubscriptions(){
+
+        LocalDate today = LocalDate.now();
+        Map<String,BigDecimal> topSubscriptions = new LinkedHashMap<>();
+        Authentication auth =  SecurityContextHolder.getContext().getAuthentication();
+        UserEntity user = userRepository.findByEmail(auth.getName()).orElseThrow(NoSuchElementException:: new);
+        List<SubscriptionEntity> subscriptions = subscriptionRepository.findAllByUserId(user.getId());
+        List<SubscriptionEntity> activeSubscriptions = new ArrayList<>();
+        for(SubscriptionEntity subscription : subscriptions){
+
+            LocalDate start = subscription.getStartDate().toLocalDate();
+            LocalDate end = subscription.getEndDate().toLocalDate();
+            if(!today.isBefore(start) && !today.isAfter(end)) {
+                activeSubscriptions.add(subscription);
+            }
+        }
+
+        activeSubscriptions.sort((a,b) -> b.getMonthlyPrice().compareTo(a.getMonthlyPrice()));
+        for(int i = 0; i < Math.min(3,activeSubscriptions.size()); i++){
+            topSubscriptions.put(activeSubscriptions.get(i).getName(),activeSubscriptions.get(i).getMonthlyPrice());
+        }
+
+        TopSubscriptionsResponse topSubscriptionsResponse = new TopSubscriptionsResponse();
+        topSubscriptionsResponse.setTopSubscriptions(topSubscriptions);
+        return topSubscriptionsResponse;
     }
 }

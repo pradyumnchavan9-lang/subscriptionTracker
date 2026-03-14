@@ -19,5 +19,7 @@ public class DashboardResponse {
     private Integer subscriptions;
     private Integer activeSubscriptions;
     private List<SubscriptionResponse> expiringSubscriptions;
+    private Map<String,BigDecimal> categoryExpenses;
+    private Integer currentMonth;
 
 }
