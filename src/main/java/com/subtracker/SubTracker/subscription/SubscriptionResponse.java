@@ -2,6 +2,7 @@ package com.subtracker.SubTracker.subscription;
 
 import com.subtracker.SubTracker.category.CategoryEntity;
 import com.subtracker.SubTracker.category.CategoryResponse;
+import com.subtracker.SubTracker.enums.SubscriptionStatus;
 import com.subtracker.SubTracker.user.UserResponseDto;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -23,5 +24,6 @@ public class SubscriptionResponse {
     private LocalDateTime endDate;
     private LocalDateTime createdDate;
     private LocalDateTime updatedDate;
+    private SubscriptionStatus status;
 
 }

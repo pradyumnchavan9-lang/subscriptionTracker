@@ -1,5 +1,6 @@
 package com.subtracker.SubTracker.subscription;
 
+import com.subtracker.SubTracker.enums.SubscriptionStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,5 +27,10 @@ public interface SubscriptionRepository extends JpaRepository<SubscriptionEntity
         AND s.startDate <= ?3
         AND s.endDate >= ?2
         """)
+
+
     List<SubscriptionEntity> findMonthlySubscriptions(Long userId,LocalDateTime startDate,LocalDateTime endDate);
+
+    //Marking expired subscriptions
+    List<SubscriptionEntity> findByEndDateBeforeAndStatus(LocalDateTime today, SubscriptionStatus status);
 }

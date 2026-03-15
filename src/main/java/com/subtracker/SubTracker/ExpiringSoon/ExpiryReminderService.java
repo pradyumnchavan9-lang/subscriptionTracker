@@ -35,4 +35,11 @@ public class ExpiryReminderService {
             emailService.sendEmail(user.getEmail(),"Subscription Expiring Soon",content);
         }
     }
+
+    @Scheduled(cron = "0 0 2 * * *")
+    @Transactional
+    public void findExpiredSubscriptions(){
+        expiringSoonService.findExpiredSubscriptions();
+    }
+
 }

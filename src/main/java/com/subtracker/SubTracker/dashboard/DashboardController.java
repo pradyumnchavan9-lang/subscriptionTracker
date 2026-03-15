@@ -22,8 +22,5 @@ public class DashboardController {
         return new ResponseEntity<>(dashboardService.getDashboard(), HttpStatus.OK);
     }
 
-    @GetMapping("/top-subscriptions")
-    public ResponseEntity<TopSubscriptionsResponse> getTopSubscriptions(){
-        return new ResponseEntity<>(dashboardService.getTopSubscriptions(),HttpStatus.OK);
-    }
+
 }

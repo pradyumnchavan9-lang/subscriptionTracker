@@ -109,18 +109,36 @@ public class DashboardService {
         //Current Month
         int month = today.getMonthValue();
         dashboardResponse.setCurrentMonth(month);
+
+
+        //Top Subscriptions
+        Map<String, BigDecimal> topSubscriptions = getTopSubscriptions(allSubscriptions);
+        dashboardResponse.setTopSubscriptions(topSubscriptions);
+
+        //Monthly Subscriptions
+        dashboardResponse.setMoneySpentPerSubscription(calculateMoneySpentPerSubscription(allSubscriptions));
+
+        //Potential Monthly Savings
+        dashboardResponse.setMonthlySavings(getPotentialMonthlySavings(topSubscriptions));
+
         return dashboardResponse;
     }
 
+    private BigDecimal getPotentialMonthlySavings(Map<String, BigDecimal> topSubscriptions) {
 
-    //Get Top subcriptions
-    public TopSubscriptionsResponse getTopSubscriptions(){
+        BigDecimal monthlySavings = BigDecimal.ZERO;
+        for(BigDecimal costOfSubscription : topSubscriptions.values()){
+            monthlySavings = monthlySavings.add(costOfSubscription);
+        }
+        return monthlySavings;
+    }
+
+
+    //Get Top subscriptions
+    public Map<String, BigDecimal>  getTopSubscriptions(List<SubscriptionEntity> subscriptions){
 
         LocalDate today = LocalDate.now();
         Map<String,BigDecimal> topSubscriptions = new LinkedHashMap<>();
-        Authentication auth =  SecurityContextHolder.getContext().getAuthentication();
-        UserEntity user = userRepository.findByEmail(auth.getName()).orElseThrow(NoSuchElementException:: new);
-        List<SubscriptionEntity> subscriptions = subscriptionRepository.findAllByUserId(user.getId());
         List<SubscriptionEntity> activeSubscriptions = new ArrayList<>();
         for(SubscriptionEntity subscription : subscriptions){
 
@@ -136,8 +154,30 @@ public class DashboardService {
             topSubscriptions.put(activeSubscriptions.get(i).getName(),activeSubscriptions.get(i).getMonthlyPrice());
         }
 
-        TopSubscriptionsResponse topSubscriptionsResponse = new TopSubscriptionsResponse();
-        topSubscriptionsResponse.setTopSubscriptions(topSubscriptions);
-        return topSubscriptionsResponse;
+        return topSubscriptions;
+    }
+
+    //Money Spent per Subscription
+    public Map<String, BigDecimal> calculateMoneySpentPerSubscription(List<SubscriptionEntity> subscriptions){
+
+        Map<String,BigDecimal> moneySpentPerSubscription = new LinkedHashMap<>();
+        LocalDate today = LocalDate.now();
+
+        for(SubscriptionEntity subscription : subscriptions){
+
+            LocalDate start = subscription.getStartDate().toLocalDate();
+            LocalDate end = subscription.getEndDate().toLocalDate();
+
+            LocalDate actualEnd = end.isBefore(today) ? end : today;
+
+            long months = java.time.temporal.ChronoUnit.MONTHS.between(start, actualEnd) + 1;
+
+            BigDecimal totalSpent = subscription.getMonthlyPrice()
+                    .multiply(BigDecimal.valueOf(months));
+
+            moneySpentPerSubscription.put(subscription.getName(), totalSpent);
+        }
+
+        return moneySpentPerSubscription;
     }
 }

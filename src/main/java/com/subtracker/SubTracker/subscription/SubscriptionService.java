@@ -4,8 +4,12 @@ import com.subtracker.SubTracker.category.CategoryEntity;
 import com.subtracker.SubTracker.category.CategoryRepository;
 import com.subtracker.SubTracker.common.PageMapper;
 import com.subtracker.SubTracker.common.PageResponseDto;
+import com.subtracker.SubTracker.enums.SubscriptionStatus;
+import com.subtracker.SubTracker.idempotency.IdempotencyKeyEntity;
+import com.subtracker.SubTracker.idempotency.IdempotencyRepository;
 import com.subtracker.SubTracker.user.UserEntity;
 import com.subtracker.SubTracker.user.UserRepository;
+import jakarta.persistence.OptimisticLockException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 
 @Service
 public class SubscriptionService {
@@ -33,22 +38,54 @@ public class SubscriptionService {
     private UserRepository userRepository;
     @Autowired
     private CategoryRepository categoryRepository;
+    @Autowired
+    private IdempotencyRepository idempotencyRepository;
 
 
-    //Create a subscription for a user
-    public SubscriptionResponse createSubscription(SubscriptionRequest subscriptionRequest) {
-        SubscriptionEntity subscriptionEntity = subscriptionMapper.requestToEntity(subscriptionRequest);
-        subscriptionEntity.onCreate();
+    // Method :----> Create a subscription for a user
+    public SubscriptionResponse createSubscription(SubscriptionRequest subscriptionRequest,String idempotencyKey) {
+
+        //Check if idempotency key is present
+        if(idempotencyKey == null || idempotencyKey.isBlank()){
+            throw new RuntimeException("Idempotency key is required");
+        }
+
+        //Fetch User
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UserEntity userEntity = userRepository.findByEmail(authentication.getName()).
                 orElseThrow(NoSuchElementException::new);
+
+        //Fetch Idempotency Key
+        Optional<IdempotencyKeyEntity> existing = idempotencyRepository.findByUserIdAndKey(userEntity.getId(),idempotencyKey);
+        if(existing.isPresent()) {
+           throw new RuntimeException("Duplicate Request Detected");
+        }
+
+        //Fetch Subscription and Map to its dto
+        SubscriptionEntity subscriptionEntity = subscriptionMapper.requestToEntity(subscriptionRequest);
+
         subscriptionEntity.setUser(userEntity);
-        subscriptionRepository.save(subscriptionEntity);
+
+        //Set subscription status as acitve
+        subscriptionEntity.setStatus(SubscriptionStatus.ACTIVE);
+
+        //Try saving safely using version
+        try {
+            subscriptionRepository.save(subscriptionEntity);
+        }catch(OptimisticLockException e){
+            throw new RuntimeException("Subscription was modified by another user.Please refresh and try again");
+        }
+
+        //Save the idempotency key
+        IdempotencyKeyEntity keyEntity = new IdempotencyKeyEntity();
+        keyEntity.setKey(idempotencyKey);
+        keyEntity.setUserId(userEntity.getId());
+        idempotencyRepository.save(keyEntity);
 
         return subscriptionMapper.entityToResponse(subscriptionEntity);
     }
 
-    //Get subscription of a user
+    // Method :----> Get subscription of a user
     public SubscriptionResponse getSubscriptionById(Long subscriptionId) {
         SubscriptionEntity subscriptionEntity = subscriptionRepository.findById(subscriptionId)
                 .orElseThrow(()->new NoSuchElementException("Subscription with id " + subscriptionId + " does not exist"));
@@ -64,7 +101,7 @@ public class SubscriptionService {
     }
 
 
-    //Get All subscriptions
+    // Method :----> Get All subscriptions
     public PageResponseDto<SubscriptionResponse> getAllSubscriptions(Pageable pageable) {
 
         Page<SubscriptionEntity> subscriptionEntities = subscriptionRepository.findAll(pageable);
@@ -74,15 +111,20 @@ public class SubscriptionService {
         return pageMapper.pageToPageDto(subscriptionResponses);
     }
 
-    //Update Subscription
+    // Method :----> Update Subscription
     public SubscriptionResponse updateSubscription(Long id, UpdateSubscriptionRequest updateSubscriptionRequest) {
 
+        //Fetch subscription from repo
         SubscriptionEntity subscriptionEntity = subscriptionRepository.findById(id)
                 .orElseThrow(()->new NoSuchElementException("Subscription with id " + id + " does not exist"));
         subscriptionEntity.onUpdate();
+
+        //Get the update info
         String name = updateSubscriptionRequest.getName();
         BigDecimal price = updateSubscriptionRequest.getPrice();
         CategoryEntity categoryEntity = subscriptionEntity.getCategory();
+
+        //Update Logic
         if(name != null) {
             subscriptionEntity.setName(name);
         }
@@ -92,13 +134,20 @@ public class SubscriptionService {
         if(categoryEntity != null) {
             subscriptionEntity.setCategory(categoryEntity);
         }
-        subscriptionRepository.save(subscriptionEntity);
+
+        //Try saving safely using version
+        try {
+            subscriptionRepository.save(subscriptionEntity);
+        }catch(OptimisticLockException e){
+            throw new RuntimeException("Subscription was modified by another user.Please refresh and try again");
+        }
         return subscriptionMapper.entityToResponse(subscriptionEntity);
     }
 
-    //Delete Subscription
+    // Method :----> Delete Subscription
     public boolean findById(Long subscriptionId) {
 
+        //Fetch Subscriptions from repo
         if(subscriptionRepository.findById(subscriptionId).isPresent()) {
             subscriptionRepository.deleteById(subscriptionId);
             return true;
@@ -107,7 +156,7 @@ public class SubscriptionService {
         }
     }
 
-    //Get Price of monthly subscriptions
+    // Method :----> Get Price of monthly subscriptions
     public BigDecimal getMonthlyPrice(int year,int month) {
 
         LocalDate start = YearMonth.now().atDay(1);

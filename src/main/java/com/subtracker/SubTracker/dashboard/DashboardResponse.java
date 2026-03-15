@@ -21,5 +21,7 @@ public class DashboardResponse {
     private List<SubscriptionResponse> expiringSubscriptions;
     private Map<String,BigDecimal> categoryExpenses;
     private Integer currentMonth;
-
+    private Map<String, BigDecimal> topSubscriptions;
+    private Map<String, BigDecimal> moneySpentPerSubscription;
+    private BigDecimal monthlySavings;
 }

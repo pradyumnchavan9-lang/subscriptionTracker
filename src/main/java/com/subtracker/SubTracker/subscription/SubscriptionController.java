@@ -20,8 +20,9 @@ public class SubscriptionController {
 
     //Create Subscription for a User
     @PostMapping
-    public ResponseEntity<SubscriptionResponse> createSubscription(@RequestBody SubscriptionRequest subscriptionRequest) {
-        return new ResponseEntity<>(subscriptionService.createSubscription(subscriptionRequest), HttpStatus.OK);
+    public ResponseEntity<SubscriptionResponse> createSubscription(@RequestBody SubscriptionRequest subscriptionRequest,
+                                                                   @RequestHeader("Idempotency-key") String idempotencyKey) {
+        return new ResponseEntity<>(subscriptionService.createSubscription(subscriptionRequest,idempotencyKey), HttpStatus.OK);
     }
 
     //Get Subscription by sub-Id

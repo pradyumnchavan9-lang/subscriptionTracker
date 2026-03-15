@@ -40,6 +40,7 @@ public class SubscriptionMapper {
         subscriptionResponse.setCategoryResponse(categoryMapper.entityToResponse(subscriptionEntity.getCategory()));
         subscriptionResponse.setStartDate(subscriptionEntity.getStartDate());
         subscriptionResponse.setEndDate(subscriptionEntity.getEndDate());
+        subscriptionResponse.setStatus(subscriptionEntity.getStatus());
         subscriptionResponse.setPrice(subscriptionEntity.getMonthlyPrice());
 
         return subscriptionResponse;
