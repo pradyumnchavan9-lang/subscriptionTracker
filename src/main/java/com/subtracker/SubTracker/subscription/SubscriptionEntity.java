@@ -3,6 +3,7 @@ package com.subtracker.SubTracker.subscription;
 
 import com.subtracker.SubTracker.category.CategoryEntity;
 import com.subtracker.SubTracker.enums.SubscriptionStatus;
+import com.subtracker.SubTracker.payment.PaymentEntity;
 import com.subtracker.SubTracker.user.UserEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -11,6 +12,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Data
@@ -31,6 +33,9 @@ public class SubscriptionEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id",nullable = false)
     private CategoryEntity category;
+
+    @OneToMany(mappedBy = "subscription")
+    private List<PaymentEntity> payments;
 
     @Column(nullable = false)
     @NotNull

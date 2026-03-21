@@ -3,7 +3,6 @@ package com.subtracker.SubTracker.subscription;
 import com.subtracker.SubTracker.common.PageResponseDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.jaxb.SpringDataJaxb;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -77,4 +76,11 @@ public class SubscriptionController {
 
         return new ResponseEntity<>(subscriptionService.getMonthlyPrice(year, month), HttpStatus.OK);
     }
+
+    //Renew Subscription
+//    @PostMapping("/{subscriptionId}/renew")
+//    public ResponseEntity<?> renewSubscription(@PathVariable Long subscriptionId) {
+//
+//        return new ResponseEntity<>(subscriptionService.renewSubscription(subscriptionId),HttpStatus.OK);
+//    }
 }

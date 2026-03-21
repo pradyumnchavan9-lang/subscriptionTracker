@@ -7,6 +7,9 @@ import com.subtracker.SubTracker.common.PageResponseDto;
 import com.subtracker.SubTracker.enums.SubscriptionStatus;
 import com.subtracker.SubTracker.idempotency.IdempotencyKeyEntity;
 import com.subtracker.SubTracker.idempotency.IdempotencyRepository;
+import com.subtracker.SubTracker.payment.PaymentEntity;
+import com.subtracker.SubTracker.payment.PaymentRepository;
+import com.subtracker.SubTracker.payment.PaymentStatus;
 import com.subtracker.SubTracker.user.UserEntity;
 import com.subtracker.SubTracker.user.UserRepository;
 import jakarta.persistence.OptimisticLockException;
@@ -40,6 +43,8 @@ public class SubscriptionService {
     private CategoryRepository categoryRepository;
     @Autowired
     private IdempotencyRepository idempotencyRepository;
+    @Autowired
+    private PaymentRepository paymentRepository;
 
 
     // Method :----> Create a subscription for a user
@@ -173,5 +178,37 @@ public class SubscriptionService {
             monthlyPrice = monthlyPrice.add(subscriptionEntity.getMonthlyPrice());
         }
         return monthlyPrice;
+    }
+
+    // Method :----> Renew Subscription
+    public PaymentEntity renewSubscription(Long subscriptionId) {
+
+        SubscriptionEntity subscription = subscriptionRepository.findById(subscriptionId)
+                .orElseThrow(()->new NoSuchElementException("Subscription with id " + subscriptionId + " does not exist"));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity user = userRepository.findByEmail(auth.getName())
+                .orElseThrow(NoSuchElementException::new);
+
+        if(!user.getId().equals(subscription.getUser().getId())) {
+            throw new RuntimeException("You cannot renew this subscription");
+        }
+
+        if(subscription.getStatus() == SubscriptionStatus.ACTIVE) {
+            throw new RuntimeException("Subscription is already active");
+        }
+
+        List<PaymentEntity> payments  = subscription.getPayments();
+        for(PaymentEntity payment : payments){
+            if(payment.getPaymentStatus() == PaymentStatus.PENDING) {
+                return payment;
+            }
+        }
+
+        PaymentEntity paymentEntity = new PaymentEntity();
+        paymentEntity.setPaymentStatus(PaymentStatus.PENDING);
+        paymentEntity.setSubscription(subscription);
+        paymentEntity.setAmount(subscription.getMonthlyPrice());
+        return paymentRepository.save(paymentEntity);
     }
 }
