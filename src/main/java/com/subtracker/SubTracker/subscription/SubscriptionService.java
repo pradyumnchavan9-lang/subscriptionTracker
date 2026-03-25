@@ -7,12 +7,11 @@ import com.subtracker.SubTracker.common.PageResponseDto;
 import com.subtracker.SubTracker.enums.SubscriptionStatus;
 import com.subtracker.SubTracker.idempotency.IdempotencyKeyEntity;
 import com.subtracker.SubTracker.idempotency.IdempotencyRepository;
-import com.subtracker.SubTracker.payment.PaymentEntity;
-import com.subtracker.SubTracker.payment.PaymentRepository;
-import com.subtracker.SubTracker.payment.PaymentStatus;
+import com.subtracker.SubTracker.payment.*;
 import com.subtracker.SubTracker.user.UserEntity;
 import com.subtracker.SubTracker.user.UserRepository;
 import jakarta.persistence.OptimisticLockException;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -45,6 +44,8 @@ public class SubscriptionService {
     private IdempotencyRepository idempotencyRepository;
     @Autowired
     private PaymentRepository paymentRepository;
+    @Autowired
+    private PaymentMapper paymentMapper;
 
 
     // Method :----> Create a subscription for a user
@@ -181,7 +182,8 @@ public class SubscriptionService {
     }
 
     // Method :----> Renew Subscription
-    public PaymentEntity renewSubscription(Long subscriptionId) {
+    @Transactional
+    public PaymentResponse renewSubscription(Long subscriptionId) {
 
         SubscriptionEntity subscription = subscriptionRepository.findById(subscriptionId)
                 .orElseThrow(()->new NoSuchElementException("Subscription with id " + subscriptionId + " does not exist"));
@@ -194,21 +196,97 @@ public class SubscriptionService {
             throw new RuntimeException("You cannot renew this subscription");
         }
 
-        if(subscription.getStatus() == SubscriptionStatus.ACTIVE) {
+        if(subscription.getStatus() == SubscriptionStatus.ACTIVE){
             throw new RuntimeException("Subscription is already active");
         }
 
-        List<PaymentEntity> payments  = subscription.getPayments();
-        for(PaymentEntity payment : payments){
-            if(payment.getPaymentStatus() == PaymentStatus.PENDING) {
-                return payment;
+        Optional<PaymentEntity> payment  = paymentRepository.findBySubscriptionAndPaymentStatus(subscription, PaymentStatus.PENDING);
+
+            if(payment.isPresent()) {
+                String paymentUrl = "http://localhost:8080/payments/" + payment.get().getPaymentId() + "/pay";
+                PaymentResponse paymentResponse = paymentMapper.entityToResponse(payment.get());
+                paymentResponse.setPaymentUrl(paymentUrl);
+                return paymentResponse;
             }
-        }
 
         PaymentEntity paymentEntity = new PaymentEntity();
         paymentEntity.setPaymentStatus(PaymentStatus.PENDING);
         paymentEntity.setSubscription(subscription);
         paymentEntity.setAmount(subscription.getMonthlyPrice());
-        return paymentRepository.save(paymentEntity);
+        subscription.setStatus(SubscriptionStatus.PAYMENT_PENDING);
+        subscriptionRepository.save(subscription);
+        paymentRepository.save(paymentEntity);
+
+        String paymentUrl = "http://localhost:8080/payments/" + paymentEntity.getPaymentId() +"/pay";
+
+        PaymentResponse paymentResponse = new PaymentResponse();
+        paymentResponse.setPaymentId(paymentEntity.getPaymentId());
+        paymentResponse.setPaymentStatus(paymentEntity.getPaymentStatus());
+        paymentResponse.setAmount(paymentEntity.getAmount());
+        paymentResponse.setPaymentUrl(paymentUrl);
+
+        return paymentResponse;
+    }
+
+    //Method :-----> Complete Payment
+    @Transactional
+    public void completePayment(Long paymentId){
+
+        //Fetch Payment
+        PaymentEntity payment = paymentRepository.findByPaymentId(paymentId)
+                .orElseThrow(()->new NoSuchElementException("Payment with id " + paymentId + " does not exist"));
+        //Check Status
+        if(!payment.getPaymentStatus().equals(PaymentStatus.PENDING)) {
+            throw new RuntimeException("Payment status is " + payment.getPaymentStatus()) ;
+        }
+        payment.setPaymentStatus(PaymentStatus.SUCCESS);
+
+
+        //Update End Date
+        LocalDateTime now  = LocalDateTime.now();
+        LocalDateTime newEndDate;
+        SubscriptionEntity subscription = payment.getSubscription();
+        if(subscription.getEndDate().isAfter(now)) {
+            newEndDate = subscription.getEndDate().plusMonths(1);
+        }else{
+            newEndDate = now.plusMonths(1);
+        }
+        subscription.setEndDate(newEndDate);
+
+        //Save changes
+        subscription.setStatus(SubscriptionStatus.ACTIVE);
+        paymentRepository.save(payment);
+        subscriptionRepository.save(subscription);
+
+    }
+
+    //Method :----> webhook for payment
+    @Transactional
+    public void subscriptionAfterPayment(PaymentRequest paymentRequest){
+
+        // 1 Verify signature
+        if(!paymentRequest.getPaymentSignature().equals("123")){
+            return;
+        }
+
+        // 2 Fetch Payment
+        PaymentEntity payment = paymentRepository.findByPaymentId(paymentRequest.getPaymentId())
+                .orElseThrow(()->new NoSuchElementException("Payment with id " + paymentRequest.getPaymentId() + " does not exist"));
+
+        // 3 Idempotency check
+        if(!payment.getPaymentStatus().equals(PaymentStatus.PENDING)) {
+            return;
+        }
+
+        // 4 Update Based on Status
+        if(paymentRequest.getPaymentStatus().equals(PaymentStatus.SUCCESS)){
+            //call complete payment
+            completePayment(paymentRequest.getPaymentId());
+        }
+        else{
+            payment.setPaymentStatus(PaymentStatus.FAILED);
+            paymentRepository.save(payment);
+        }
+
     }
 }
