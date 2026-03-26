@@ -32,6 +32,8 @@ public class PaymentEntity {
 
     private LocalDateTime createdAt;
 
+    private String stripeSessionId;
+
     @PrePersist
     public void prePersist(){
         createdAt = LocalDateTime.now();

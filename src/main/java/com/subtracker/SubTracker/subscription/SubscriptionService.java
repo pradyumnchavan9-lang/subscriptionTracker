@@ -1,5 +1,10 @@
 package com.subtracker.SubTracker.subscription;
 
+import com.stripe.exception.StripeException;
+import com.stripe.model.Event;
+import com.stripe.model.checkout.Session;
+import com.stripe.net.Webhook;
+import com.stripe.param.checkout.SessionCreateParams;
 import com.subtracker.SubTracker.category.CategoryEntity;
 import com.subtracker.SubTracker.category.CategoryRepository;
 import com.subtracker.SubTracker.common.PageMapper;
@@ -18,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -262,31 +268,111 @@ public class SubscriptionService {
 
     //Method :----> webhook for payment
     @Transactional
-    public void subscriptionAfterPayment(PaymentRequest paymentRequest){
+    public void handleStripeWebhook(String payload, String sigHeader) {
 
-        // 1 Verify signature
-        if(!paymentRequest.getPaymentSignature().equals("123")){
-            return;
+        String endpointSecret = "abc";
+
+        Event event;
+
+        // 1. Verify Stripe signature
+        try {
+            event = Webhook.constructEvent(payload, sigHeader, endpointSecret);
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid Stripe signature");
         }
 
-        // 2 Fetch Payment
-        PaymentEntity payment = paymentRepository.findByPaymentId(paymentRequest.getPaymentId())
-                .orElseThrow(()->new NoSuchElementException("Payment with id " + paymentRequest.getPaymentId() + " does not exist"));
+        // 2. Handle only relevant event
+        if ("checkout.session.completed".equals(event.getType())) {
 
-        // 3 Idempotency check
-        if(!payment.getPaymentStatus().equals(PaymentStatus.PENDING)) {
-            return;
-        }
+            // 3. Extract session object
+            Session session = (Session) event.getDataObjectDeserializer()
+                    .getObject()
+                    .orElseThrow(() -> new RuntimeException("Failed to deserialize session"));
 
-        // 4 Update Based on Status
-        if(paymentRequest.getPaymentStatus().equals(PaymentStatus.SUCCESS)){
-            //call complete payment
-            completePayment(paymentRequest.getPaymentId());
-        }
-        else{
-            payment.setPaymentStatus(PaymentStatus.FAILED);
+            // 4. Get sessionId
+            String sessionId = session.getId();
+
+            // 5. Find payment using sessionId
+            PaymentEntity payment = paymentRepository
+                    .findByStripeSessionId(sessionId)
+                    .orElseThrow(() -> new RuntimeException("Payment not found"));
+
+            // 6. Idempotency check
+            if (payment.getPaymentStatus() != PaymentStatus.PENDING) {
+                return;
+            }
+
+            // 7. Update status
+            payment.setPaymentStatus(PaymentStatus.SUCCESS);
             paymentRepository.save(payment);
         }
 
+        // Optional: handle failed/expired cases
+        else if ("checkout.session.expired".equals(event.getType())) {
+
+            Session session = (Session) event.getDataObjectDeserializer()
+                    .getObject()
+                    .orElseThrow(() -> new RuntimeException("Failed to deserialize session"));
+
+            String sessionId = session.getId();
+
+            PaymentEntity payment = paymentRepository
+                    .findByStripeSessionId(sessionId)
+                    .orElseThrow(() -> new RuntimeException("Payment not found"));
+
+            if (payment.getPaymentStatus() != PaymentStatus.PENDING) {
+                return;
+            }
+
+            payment.setPaymentStatus(PaymentStatus.FAILED);
+            paymentRepository.save(payment);
+        }
+    }
+
+    //Method :----> stripe checkout session
+    public String createStripeCheckoutSession(Long paymentId) throws StripeException {
+
+        PaymentEntity payment = paymentRepository.findByPaymentId(paymentId)
+                .orElseThrow(()->new NoSuchElementException("Payment with id " + paymentId + " does not exist"));
+
+        //1. Convert amount to the smallest currency unit
+        long amountInCents = payment.getAmount().multiply(new BigDecimal(100)).longValue();
+
+        //2. Build checkout session params
+        SessionCreateParams params = SessionCreateParams.builder()
+                .setMode(SessionCreateParams.Mode.PAYMENT)
+                .setSuccessUrl("http://localhost:8080/payments/success?session_id={CHECKOUT_SESSION_ID}")
+                .setCancelUrl("http://localhost:8080/payments/cancel")
+                .putMetadata("paymentId", paymentId.toString())
+                .addLineItem(
+                        SessionCreateParams.LineItem.builder()
+                                .setQuantity(1L)
+                                .setPriceData(
+                                        SessionCreateParams.LineItem.PriceData.builder()
+                                                .setCurrency("INR")
+                                                .setUnitAmount(amountInCents)
+                                                .setProductData(
+                                                        SessionCreateParams.LineItem.PriceData.ProductData.builder()
+                                                                .setName("Payment #" + paymentId)
+                                                                .build()
+                                                )
+                                                .build()
+                                )
+                                .build()
+                )
+                .build();
+
+
+        if(payment.getPaymentStatus() != PaymentStatus.PENDING) {
+            throw new RuntimeException("Payment already processed or not eligible for checkout");
+        }
+
+        //3.Create Session
+        Session session = Session.create(params);
+        payment.setStripeSessionId(session.getId());
+        paymentRepository.save(payment);
+
+        //4.Return url to frontend
+        return session.getUrl();
     }
 }

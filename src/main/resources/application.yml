@@ -37,3 +37,6 @@ jwt:
 
 app:
   jwtRefreshExpirationMs: 6040800000
+
+Stripe:
+  apiKey: abc
