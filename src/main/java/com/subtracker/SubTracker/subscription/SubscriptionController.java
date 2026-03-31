@@ -1,6 +1,9 @@
 package com.subtracker.SubTracker.subscription;
 
+import com.stripe.exception.StripeException;
 import com.subtracker.SubTracker.common.PageResponseDto;
+import com.subtracker.SubTracker.payment.CheckoutResponse;
+import com.subtracker.SubTracker.payment.PaymentResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -78,9 +81,15 @@ public class SubscriptionController {
     }
 
     //Renew Subscription
-//    @PostMapping("/{subscriptionId}/renew")
-//    public ResponseEntity<?> renewSubscription(@PathVariable Long subscriptionId) {
-//
-//        return new ResponseEntity<>(subscriptionService.renewSubscription(subscriptionId),HttpStatus.OK);
-//    }
+    @PostMapping("/{subscriptionId}/renew")
+    public ResponseEntity<PaymentResponse> renewSubscription(@PathVariable Long subscriptionId) {
+        return new ResponseEntity<>(subscriptionService.renewSubscription(subscriptionId),HttpStatus.OK);
+    }
+
+    //Create stripe checkout session
+    @PostMapping("/{paymentId}/checkout")
+    public ResponseEntity<CheckoutResponse> createStripeCheckoutSession(@PathVariable Long paymentId){
+
+        return new ResponseEntity<>(subscriptionService.createStripeCheckoutSession(paymentId),HttpStatus.OK);
+    }
 }

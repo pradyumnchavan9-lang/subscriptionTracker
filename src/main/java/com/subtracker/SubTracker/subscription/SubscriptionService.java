@@ -243,7 +243,7 @@ public class SubscriptionService {
                 .orElseThrow(()->new NoSuchElementException("Payment with id " + paymentId + " does not exist"));
         //Check Status
         if(!payment.getPaymentStatus().equals(PaymentStatus.PENDING)) {
-            throw new RuntimeException("Payment status is " + payment.getPaymentStatus()) ;
+            return ;
         }
         payment.setPaymentStatus(PaymentStatus.SUCCESS);
 
@@ -303,7 +303,7 @@ public class SubscriptionService {
             }
 
             // 7. Update status
-            payment.setPaymentStatus(PaymentStatus.SUCCESS);
+            completePayment(payment.getPaymentId());
             paymentRepository.save(payment);
         }
 
@@ -330,7 +330,7 @@ public class SubscriptionService {
     }
 
     //Method :----> stripe checkout session
-    public String createStripeCheckoutSession(Long paymentId) throws StripeException {
+    public CheckoutResponse createStripeCheckoutSession(Long paymentId) {
 
         PaymentEntity payment = paymentRepository.findByPaymentId(paymentId)
                 .orElseThrow(()->new NoSuchElementException("Payment with id " + paymentId + " does not exist"));
@@ -368,11 +368,18 @@ public class SubscriptionService {
         }
 
         //3.Create Session
-        Session session = Session.create(params);
+        Session session = null;
+        try {
+            session = Session.create(params);
+        } catch (StripeException e) {
+            throw new RuntimeException(e);
+        }
         payment.setStripeSessionId(session.getId());
         paymentRepository.save(payment);
 
         //4.Return url to frontend
-        return session.getUrl();
+        CheckoutResponse checkoutResponse = new CheckoutResponse();
+        checkoutResponse.setUrl(session.getUrl());
+        return checkoutResponse;
     }
 }
