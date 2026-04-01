@@ -1,6 +1,8 @@
 package com.subtracker.SubTracker.payment;
 
+import org.springframework.stereotype.Component;
 
+@Component
 public class PaymentMapper {
 
     public PaymentResponse entityToResponse(PaymentEntity paymentEntity) {
